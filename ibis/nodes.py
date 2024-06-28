@@ -51,6 +51,11 @@ def register(keyword, endword=None):
 #
 #     foo.bar.baz('bam')|filter(25, 'text')
 #
+
+class ContextVariable(str):
+    pass
+
+
 class Expression:
 
     re_func_call = re.compile(r'^([\w.]+)\((.*)\)$')
@@ -83,11 +88,16 @@ class Expression:
         func_name = match.group(1)
         func_args = utils.splitc(match.group(2), ',', True, True)
         for index, arg in enumerate(func_args):
+            # try resolving as variable
+            if arg[0] == "!":
+                func_args[index] = ContextVariable(arg[1:])
+                continue
             try:
                 func_args[index] = ast.literal_eval(arg)
-            except Exception as err:
+            except Exception:
                 msg = "Unparsable argument '{}'. Arguments must be valid Python literals.".format(arg)
-                errors.raise_(errors.TemplateSyntaxError(msg, self.token), err)
+                errors.raise_(errors.TemplateSyntaxError(msg, self.token))
+
         return True, func_name, func_args
 
     def _parse_filters(self, filter_list):
@@ -114,19 +124,30 @@ class Expression:
         else:
             return self._resolve_variable(context)
 
+    def _resolve_arg_to_variable(self, arg, context):
+        if isinstance(arg, ContextVariable):
+            return context.resolve(arg, self.token)
+        return arg
+
     def _resolve_variable(self, context):
         obj = context.resolve(self.varstring, self.token)
         if self.is_func_call:
             try:
+                for index, arg in enumerate(self.func_args):
+                    self.func_args[index] = self._resolve_arg_to_variable(arg, context)
+
                 obj = obj(*self.func_args)
             except Exception as err:
                 msg = "Error calling function '{}'.".format(self.varstring)
                 errors.raise_(errors.TemplateRenderingError(msg, self.token), err)
-        return self._apply_filters_to_variable(obj)
+        return self._apply_filters_to_variable(obj, context)
 
-    def _apply_filters_to_variable(self, obj):
+    def _apply_filters_to_variable(self, obj, context):
         for name, func, args in self.filters:
             try:
+                for index, arg in enumerate(args):
+                    args[index] = self._resolve_arg_to_variable(arg, context)
+
                 obj = func(obj, *args)
             except Exception as err:
                 msg = "Error applying filter '{}'.".format(name)
