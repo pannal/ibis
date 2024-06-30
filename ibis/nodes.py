@@ -88,13 +88,14 @@ class Expression:
         func_name = match.group(1)
         func_args = utils.splitc(match.group(2), ',', True, True)
         for index, arg in enumerate(func_args):
-            # try resolving as variable
-            if arg[0] == "!":
-                func_args[index] = ContextVariable(arg[1:])
-                continue
             try:
                 func_args[index] = ast.literal_eval(arg)
             except Exception:
+                # try resolving as variable
+                if arg.isidentifier():
+                    func_args[index] = ContextVariable(arg)
+                    continue
+
                 msg = "Unparsable argument '{}'. Arguments must be valid Python literals.".format(arg)
                 errors.raise_(errors.TemplateSyntaxError(msg, self.token))
 
