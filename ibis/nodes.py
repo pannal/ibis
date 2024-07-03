@@ -56,6 +56,10 @@ class ContextVariable(str):
     pass
 
 
+class ResolveContextVariable(str):
+    pass
+
+
 class Expression:
 
     re_func_call = re.compile(r'^([\w.]+)\((.*)\)$')
@@ -138,6 +142,13 @@ class Expression:
                     self.func_args[index] = self._resolve_arg_to_variable(arg, context)
 
                 obj = obj(*self.func_args)
+
+                # a filter/builtin might return a masked variable name whose content should be resolved in the current
+                # context. try to do so.
+                if isinstance(obj, ResolveContextVariable):
+                    value = context.resolve(obj, self.token)
+                    obj = context.resolve(value, self.token)
+
             except Exception as err:
                 msg = "Error calling function '{}'.".format(self.varstring)
                 errors.raise_(errors.TemplateRenderingError(msg, self.token), err)
