@@ -1,4 +1,4 @@
-# Ibis
+# Ibis (Py2/Py3 compat)
 
 [docs]: http://www.dmulholl.com/docs/ibis/master/
 
