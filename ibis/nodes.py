@@ -6,7 +6,9 @@ import re
 import itertools
 import collections
 import math
+
 import six
+
 import ibis
 
 from . import utils
@@ -165,6 +167,7 @@ class Expression:
             self.is_literal = True
         except:
             if any(ext in expr for ext in ('+', '-', '/', '*', '**', '%')):
+                # fixme: this currently doesn't work with variables with filters applied, e.g.: a|default(10) + 20
                 try:
                     matheval = safe_math_eval(expr)
                     if isinstance(matheval, list):
@@ -255,10 +258,11 @@ class Expression:
 
         if self.is_func_call:
             try:
+                func_args = []
                 for index, arg in enumerate(self.func_args):
-                    self.func_args[index] = self._resolve_arg_to_variable(arg, context)
+                    func_args.append(self._resolve_arg_to_variable(arg, context))
 
-                obj = obj(*self.func_args)
+                obj = obj(*func_args)
 
                 # a filter/builtin might return a masked variable name whose content should be resolved in the current
                 # context. try to do so.
@@ -626,7 +630,6 @@ class CycleNode(Node):
 # resolving to a string. This name will be passed to the registered template loader.
 @register('include')
 class IncludeNode(Node):
-
     def process_token(self, token):
         self.variables = {}
         parts = utils.splitre(token.text[7:], [r"with\s"])
@@ -749,7 +752,6 @@ class TrimNode(Node):
 #
 @register('with', 'endwith')
 class WithNode(Node):
-
     def process_token(self, token):
         self.variables = {}
         chunks = utils.splitc(token.text[4:], "&", strip=True, discard_empty=True)
